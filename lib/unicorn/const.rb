@@ -30,6 +30,7 @@ module Unicorn
     # A frozen format for this is about 15% faster
     REMOTE_ADDR="REMOTE_ADDR".freeze
     RACK_INPUT="rack.input".freeze
+    UNICORN_WORKER="UNICORN_WORKER".freeze
     HTTP_EXPECT="HTTP_EXPECT"
   end
 

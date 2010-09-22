@@ -639,9 +639,11 @@ module Unicorn
 
     # once a client is accepted, it is processed in its entirety here
     # in 3 easy steps: read request, call app, write app response
-    def process_client(client)
+    def process_client(client, worker)
       client.fcntl(Fcntl::F_SETFD, Fcntl::FD_CLOEXEC)
-      response = app.call(env = REQUEST.read(client))
+      env = REQUEST.read(client)
+      env[Const::UNICORN_WORKER] = worker.nr
+      response = app.call(env)
 
       if 100 == response[0].to_i
         client.write(Const::EXPECT_100_RESPONSE)
@@ -714,7 +716,7 @@ module Unicorn
 
         ready.each do |sock|
           begin
-            process_client(sock.accept_nonblock)
+            process_client(sock.accept_nonblock, worker)
             nr += 1
             alive.chmod(m = 0 == m ? 1 : 0)
           rescue Errno::EAGAIN, Errno::ECONNABORTED
