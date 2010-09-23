@@ -181,4 +181,59 @@ module Unicorn
     end
   end
 
+  class OobGCDisabled < OobGC
+    def gc
+      # do nothing
+    end
+  end
+
+  # superclasses OobGCForInterval as a backup strategy if the max begins to fail
+  class OobGCOnMaxMemory < OobGCForInterval
+    attr_accessor :max_memory, :successful
+
+    def initialize(app, max_memory, fallback_interval=5)
+      super(app, fallback_interval)
+      self.max_memory = max_memory.to_i
+      self.successful = true
+    end
+
+    def should_gc?
+      return true if (successful and (get_memory_usage > max_memory)) 
+
+      # fallback to interval if this max memory strategy isn't working anymore
+      super
+    end
+
+    def after_gc
+      # check to see if we are running a successful stragegy still
+      # if we are over the max after GC, then we can't use this strategy anymore
+      # we still would need to call GC from time to time
+      self.successful = get_memory_usage < max_memory
+    end
+
+    #copied from oink: http://github.com/marshally/oink/blob/master/lib/oink/rails/memory_usage_logger.rb
+    def get_memory_usage
+      if defined? WIN32OLE
+        wmi = WIN32OLE.connect("winmgmts:root/cimv2")
+        mem = 0
+        query = "select * from Win32_Process where ProcessID = #{$$}"
+        wmi.ExecQuery(query).each do |wproc|
+          mem = wproc.WorkingSetSize
+        end
+        mem.to_i / 1000
+      elsif proc_file = File.new("/proc/#{$$}/smaps") rescue nil
+        proc_file.map do |line|
+          size = line[/Size: *(\d+)/, 1] and size.to_i
+        end.compact.sum
+      elsif proc_file = File.new("/proc/#{$$}/status") rescue nil
+        proc_file.map do |line|
+          size = line[/VmSize:\s*(\d+)/, 1] and size.to_i
+        end.compact.sum
+      else
+        `ps -o vsz= -p #{$$}`.to_i
+      end
+    end
+
+  end
+
 end
