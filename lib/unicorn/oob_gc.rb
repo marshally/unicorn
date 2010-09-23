@@ -41,9 +41,7 @@ module Unicorn
       self.env = env
 
       before_request
-
       status, headers, self.body = app.call(env)
-      
       after_request
       
       [ status, headers, self ]
@@ -56,10 +54,7 @@ module Unicorn
     # in Unicorn, this is closed _after_ the client socket
     def close
       body.close if body.respond_to?(:close)
-
-      return unless should_gc?
-
-      gc
+      gc if should_gc?
     end
 
     def before_request
@@ -80,6 +75,7 @@ module Unicorn
 
     def after_request
     end
+
   end
 
 
@@ -115,22 +111,21 @@ module Unicorn
   end
 
   class OobMemoryLeakFinder < OobGC
-    attr_accessor :profiler_before_request, :profiler_after_gc, :objects_before_request, :objects_after_request, :objects_after_gc, :request_path, :path_parameters, :history, :logger
+    attr_accessor :profiler_before_request, :profiler_after_gc, :objects_before_request, :objects_after_request, :objects_after_gc, :request_path, :path_parameters, :history, :logger, :profile_worker
     require 'logger'
     
-    def initialize(app)
+    def initialize(app, profile_worker=1)
       self.history = Hash.new
-      
+      self.profile_worker = profile_worker.to_s
       super(app)
     end
 
     def should_gc?
-      worker_number == "1" || worker_number == "2"
+      profile_worker == worker_number #worker_number == "1" || worker_number == "2"
     end
-
+    
     def worker_number
       # this will do something bad if env isn't set yet
-      puts self.env[Const::UNICORN_WORKER].to_s
       self.env[Const::UNICORN_WORKER].to_s
     end
 
